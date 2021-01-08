@@ -10,8 +10,6 @@ on:
       - 'LICENSE'
 
   pull_request:
-    branches:
-      - master
     paths-ignore:
       - 'README.md'
       - 'LICENSE'
@@ -24,7 +22,7 @@ env:
   # docker images, see https://hub.docker.com/r/vitzy/flameshot
   # vitzy/flameshot or packpack/packpack
   DOCKER_REPO: vitzy/flameshot
-  # upload services: 0x0.st, file.io, transfer.sh, wetransfer.com
+  # upload services: wetransfer.com, file.io, 0x0.st
   UPLOAD_SERVICE: wetransfer.com
 
 jobs:
@@ -55,7 +53,7 @@ jobs:
       - name: Checkout Source code
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v2
-        with: 
+        with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Set env & Print flameshot version
@@ -68,7 +66,7 @@ jobs:
           echo ${last_committed_tag:1}
           echo "Details: ${last_committed_tag}+git${git_revno}.${git_hash}"
           echo "================================"
-          echo ::set-env name=VERSION::$(echo ${last_committed_tag:1})
+          echo "VERSION=${last_committed_tag:1}" >> $GITHUB_ENV
       - name: Get packpack tool
         uses: actions/checkout@v2
         with:
@@ -102,7 +100,6 @@ jobs:
           path: |
             ${{ github.workspace }}/build/${{ env.PRODUCT }}-*-${{ env.RELEASE }}.${{ matrix.dist.name }}.amd64.deb
             ${{ github.workspace }}/build/${{ env.PRODUCT }}-*-${{ env.RELEASE }}.${{ matrix.dist.name }}.amd64.deb.sha256sum
-
   deb-pack-extra:
     name: ubuntu-18.04(extra job to packaging deb)
     runs-on: ubuntu-20.04
@@ -120,7 +117,7 @@ jobs:
       - name: Checkout Source code
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v1
-        with: 
+        with:
           fetch-depth: 0
           ref: refs/pull/${{ github.event.number }}/head
       - name: Set env & Print flameshot version
@@ -133,7 +130,7 @@ jobs:
           echo ${last_committed_tag:1}
           echo "Details: ${last_committed_tag}+git${git_revno}.${git_hash}"
           echo "================================"
-          echo ::set-env name=VERSION::$(echo ${last_committed_tag:1})
+          echo "VERSION=${last_committed_tag:1}" >> $GITHUB_ENV
       - name: Install dependencies
         run: |
           apt-get -y -qq update
@@ -170,7 +167,7 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/build
           sed -e "/cmake (>= 3.13~),/d" -i $GITHUB_WORKSPACE/debian/control
           dpkg-buildpackage -b
-          cp $GITHUB_WORKSPACE/../${PRODUCT}_${VERSION}-${RELEASE}_amd64.deb $GITHUB_WORKSPACE/build/${PRODUCT}-${VERSION}-${RELEASE}.ubuntu-18.04.amd64.deb
+          cp $GITHUB_WORKSPACE/../${PRODUCT}_*-${RELEASE}_amd64.deb $GITHUB_WORKSPACE/build/${PRODUCT}-${VERSION}-${RELEASE}.ubuntu-18.04.amd64.deb
       - name: SHA256Sum of ubuntu-18.04 package(daily build)
         run: |
           sha256sum $GITHUB_WORKSPACE/build/${PRODUCT}-${VERSION}-${RELEASE}.ubuntu-18.04.amd64.deb
@@ -189,7 +186,6 @@ jobs:
           name: Linux-distribution-artifact
           path: |
             ${{ github.workspace }}/build/*
-
   rpm-pack:
     name: ${{ matrix.dist.name }}
     runs-on: ubuntu-20.04
@@ -222,7 +218,7 @@ jobs:
       - name: Checkout Source code
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v2
-        with: 
+        with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Set env & Print flameshot version
@@ -235,7 +231,7 @@ jobs:
           echo ${last_committed_tag:1}
           echo "Details: ${last_committed_tag}+git${git_revno}.${git_hash}"
           echo "================================"
-          echo ::set-env name=VERSION::$(echo ${last_committed_tag:1})
+          echo "VERSION=${last_committed_tag:1}" >> $GITHUB_ENV
       - name: Get packpack tool
         uses: actions/checkout@v2
         with:
@@ -292,7 +288,6 @@ jobs:
           name: Linux-distribution-artifact
           path: |
             ${{ github.workspace }}/build/
-
       - name: Artifact Upload
         if: matrix.dist.os == 'opensuse-leap'
         uses: actions/upload-artifact@v2
@@ -301,7 +296,6 @@ jobs:
           path: |
             ${{ github.workspace }}/build/${{ env.PRODUCT }}-*-lp${{ matrix.dist.symbol }}.${{ env.ARCH }}.rpm
             ${{ github.workspace }}/build/${{ env.PRODUCT }}-*-lp${{ matrix.dist.symbol }}.${{ env.ARCH }}.rpm.sha256sum
-
   appimage-pack:
     name: appimage
     runs-on: ubuntu-20.04
@@ -315,7 +309,7 @@ jobs:
       - name: Checkout Source code
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v2
-        with: 
+        with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Set env & Print flameshot version
@@ -328,7 +322,7 @@ jobs:
           echo ${last_committed_tag:1}
           echo "Details: ${last_committed_tag}+git${git_revno}.${git_hash}"
           echo "================================"
-          echo ::set-env name=VERSION::$(echo ${last_committed_tag:1})
+          echo "VERSION=${last_committed_tag:1}" >> $GITHUB_ENV
       - name: Install Dependencies
         run: |
           sudo apt-get -y -qq update
@@ -362,24 +356,18 @@ jobs:
         run: |
           APPIMAGE_DST_PATH=$GITHUB_WORKSPACE/${PRODUCT}.AppDir
           mkdir -p ${APPIMAGE_DST_PATH}
-
           cd $GITHUB_WORKSPACE
           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=/usr
           make -j$(nproc) DESTDIR=${APPIMAGE_DST_PATH} install
-
           $GITHUB_WORKSPACE/appimagetool -s deploy ${APPIMAGE_DST_PATH}/usr/share/applications/org.flameshot.Flameshot.desktop
-
           mkdir -p ${APPIMAGE_DST_PATH}/usr/plugins/platforminputcontexts
           cp \
             /usr/lib/${ARCH}-linux-gnu/qt5/plugins/platforminputcontexts/libfcitxplatforminputcontextplugin.so \
             ${APPIMAGE_DST_PATH}/usr/plugins/platforminputcontexts/
-
           cp \
             $GITHUB_WORKSPACE/data/img/app/org.flameshot.Flameshot.png \
             ${APPIMAGE_DST_PATH}/
-
           rm  ${APPIMAGE_DST_PATH}/lib/x86_64-linux-gnu/libxcb-glx.so.0
-
           VERSION=${VERSION} $GITHUB_WORKSPACE/appimagetool ${APPIMAGE_DST_PATH}
           mv $GITHUB_WORKSPACE/Flameshot-${VERSION}-${ARCH}.AppImage $GITHUB_WORKSPACE/Flameshot-${VERSION}.${ARCH}.AppImage
       - name: SHA256Sum of appimage package(daily build)
@@ -401,7 +389,6 @@ jobs:
           path: |
             ${{ github.workspace }}/Flameshot-*.${{ env.ARCH }}.AppImage
             ${{ github.workspace }}/Flameshot-*.${{ env.ARCH }}.AppImage.sha256sum
-
   flatpak-pack:
     name: flatpak
     runs-on: ubuntu-20.04
@@ -409,13 +396,13 @@ jobs:
       - name: Checkout Source code
         if: github.event_name == 'push'
         uses: actions/checkout@v2
-        with: 
+        with:
           fetch-depth: 0
           ref: master
       - name: Checkout Source code
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v2
-        with: 
+        with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Set env & Print flameshot version
@@ -428,7 +415,7 @@ jobs:
           echo ${last_committed_tag:1}
           echo "Details: ${last_committed_tag}+git${git_revno}.${git_hash}"
           echo "================================"
-          echo ::set-env name=VERSION::$(echo ${last_committed_tag:1})
+          echo "VERSION=${last_committed_tag:1}" >> $GITHUB_ENV
       - name: Setup flatpak
         run: |
           sudo apt-get -y -qq update
@@ -444,7 +431,6 @@ jobs:
           RUNTIME_REPO="https://flathub.org/repo/flathub.flatpakrepo"
           APP_ID="org.flameshot.Flameshot"
           BRANCH="master"
-
           flatpak-builder --user --disable-rofiles-fuse --repo=repo --force-clean flatpak_app ${MANIFEST_PATH} --install-deps-from=flathub
           flatpak build-bundle repo ${BUNDLE} --runtime-repo=${RUNTIME_REPO} ${APP_ID} ${BRANCH}
           mv $GITHUB_WORKSPACE/org.flameshot.Flameshot_${VERSION}_${ARCH}.flatpak $GITHUB_WORKSPACE/org.flameshot.Flameshot-${VERSION}.${ARCH}.flatpak
@@ -467,7 +453,6 @@ jobs:
           path: |
             ${{ github.workspace }}/org.flameshot.Flameshot-*.${{ env.ARCH }}.flatpak
             ${{ github.workspace }}/org.flameshot.Flameshot-*.${{ env.ARCH }}.flatpak.sha256sum
-
   snap-pack:
     name: snap
     runs-on: ubuntu-20.04
@@ -481,7 +466,7 @@ jobs:
       - name: Checkout Source code
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v2
-        with: 
+        with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Set env & Print flameshot version
@@ -494,8 +479,7 @@ jobs:
           echo ${last_committed_tag:1}
           echo "Details: ${last_committed_tag}+git${git_revno}.${git_hash}"
           echo "================================"
-          echo ::set-env name=VERSION::$(echo ${last_committed_tag:1})
-
+          echo "VERSION=${last_committed_tag:1}" >> $GITHUB_ENV
       - name: Packaging snap
         uses: snapcore/action-build@v1
         id: snapcraft
